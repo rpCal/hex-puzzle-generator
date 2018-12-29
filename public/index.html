@@ -1,0 +1,36 @@
+<html>
+
+<head>
+    <title>Hex-gene</title>
+    <script src="./build/build.js"></script>
+</head>
+
+<body>
+
+    <input type="file" name="file" id="filepicker" />
+    <!-- Wymiary pliku w pikselach do druku w jakości 72 DPI: 842 x 1 191 px-->
+    
+    <!-- <canvas id="canvas" width="842" height="1191"></canvas> -->
+    <canvas id="canvas" width="1123" height="1587"></canvas>
+
+    <style>
+    body,html{
+        margin: 0;
+        padding: 0;
+    }
+    body{
+        background: #eee;
+    }
+
+    @media print {
+        #filepicker{
+            display: none;
+        }
+        #canvas{
+        }
+    }
+    
+    </style>
+</body>
+
+</html>
