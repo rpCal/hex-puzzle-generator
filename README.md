@@ -2,7 +2,7 @@
 
 A hexagonal jigsaw puzzle for the browser, rendered with WebGPU.
 
-**[▶ Play it](https://rpcal.github.io/hex-puzzle-generator/)** · zero runtime dependencies · 33 kB gzipped
+**[▶ Play it](https://rpcal.github.io/hex-puzzle-generator/)** · zero runtime dependencies · 35 kB gzipped
 
 ![A 91-piece board, assembled](docs/media/assembled-91.png)
 
