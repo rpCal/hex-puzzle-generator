@@ -15,3 +15,5 @@ tests/e2e/**/*-diff.png
 # OS
 .DS_Store
 Thumbs.db
+
+.media-frames/
