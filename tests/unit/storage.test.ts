@@ -7,6 +7,7 @@ import {
   SESSION_KEY,
   STATS_KEY,
   debounce,
+  prefersReducedMotion,
   type KeyValueStore,
 } from '@game/storage.ts';
 import { generateCut } from '@core/cut/board.ts';
@@ -220,5 +221,47 @@ describe('MemoryStore', () => {
     expect(store.getItem('a')).toBe('1');
     store.removeItem('a');
     expect(store.getItem('a')).toBeNull();
+  });
+});
+
+describe('reduced motion', () => {
+  const withMatchMedia = (matches: boolean, run: () => void): void => {
+    const original = Reflect.get(globalThis, 'matchMedia') as unknown;
+    Reflect.set(globalThis, 'matchMedia', (query: string) => ({ matches, media: query }));
+    try {
+      run();
+    } finally {
+      if (original === undefined) Reflect.deleteProperty(globalThis, 'matchMedia');
+      else Reflect.set(globalThis, 'matchMedia', original);
+    }
+  };
+
+  it('reports the system preference', () => {
+    withMatchMedia(true, () => expect(prefersReducedMotion()).toBe(true));
+    withMatchMedia(false, () => expect(prefersReducedMotion()).toBe(false));
+  });
+
+  it('returns false where matchMedia does not exist', () => {
+    expect(prefersReducedMotion()).toBe(false);
+  });
+
+  it('uses the system preference as the default', () => {
+    withMatchMedia(true, () => {
+      expect(new Persistence(new MemoryStore()).loadPrefs().reducedMotion).toBe(true);
+    });
+  });
+
+  it('lets a stored choice override the system preference in both directions', () => {
+    // Someone who turned the toggle off has expressed a stronger opinion than their OS setting.
+    withMatchMedia(true, () => {
+      const store = new MemoryStore();
+      store.setItem(PREFS_KEY, JSON.stringify({ reducedMotion: false }));
+      expect(new Persistence(store).loadPrefs().reducedMotion).toBe(false);
+    });
+    withMatchMedia(false, () => {
+      const store = new MemoryStore();
+      store.setItem(PREFS_KEY, JSON.stringify({ reducedMotion: true }));
+      expect(new Persistence(store).loadPrefs().reducedMotion).toBe(true);
+    });
   });
 });

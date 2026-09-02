@@ -38,6 +38,20 @@ export const DEFAULT_PREFS: Prefs = {
   showReference: true,
 };
 
+/**
+ * Whether the environment asks for reduced motion.
+ *
+ * Used as the *default* for the preference, not an override: someone who has turned the toggle on
+ * or off has expressed a stronger opinion than their operating system, and their choice persists.
+ */
+export function prefersReducedMotion(): boolean {
+  try {
+    return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  } catch {
+    return false;
+  }
+}
+
 export interface RunRecord {
   bestSeconds: number;
   completions: number;
@@ -117,7 +131,8 @@ export class Persistence {
     const stored = this.#read<Partial<Prefs>>(PREFS_KEY, {});
     return {
       volume: clamp01(numberOr(stored.volume, DEFAULT_PREFS.volume)),
-      reducedMotion: boolOr(stored.reducedMotion, DEFAULT_PREFS.reducedMotion),
+      // The system preference is the default; a stored choice overrides it.
+      reducedMotion: boolOr(stored.reducedMotion, prefersReducedMotion()),
       colorblind: boolOr(stored.colorblind, DEFAULT_PREFS.colorblind),
       highContrastCuts: boolOr(stored.highContrastCuts, DEFAULT_PREFS.highContrastCuts),
       showReference: boolOr(stored.showReference, DEFAULT_PREFS.showReference),

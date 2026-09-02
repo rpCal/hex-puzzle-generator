@@ -325,8 +325,13 @@ same puzzle. That is the nicest thing in the whole spec.
 
 ## 10. Accessibility
 
-- Respects `prefers-reduced-motion`: disables toss physics easing, particles and bloom pulse.
-- Respects `prefers-color-scheme` for the HUD; the board itself is deliberately dark in both.
+- Respects `prefers-reduced-motion`: it seeds the preference's default, and turning it on disables
+  particles, grain and most of the bloom. A stored choice overrides the system setting in both
+  directions, because someone who moved the toggle has expressed the stronger opinion.
+- **Deviation from the original plan:** the HUD does not follow `prefers-color-scheme`. The board is
+  a dark surface in every mode by design, and a light HUD floating over it looked worse than the
+  dark one in every arrangement tried. A high-contrast toggle covers the accessibility need that
+  the light theme was there to serve.
 - High-contrast cut mode draws a bright outline along every piece boundary.
 - Colourblind-safe HUD palette; status is never encoded by colour alone.
 - Full keyboard operation (S7) with a visible focus ring on the active piece and `aria-live`
@@ -417,10 +422,20 @@ upload artifact, `actions/deploy-pages`. Requires flipping the repo's Pages `bui
 
 ## 13. Definition of done
 
-- [ ] All of §11 passing in CI on a clean checkout
-- [ ] S1–S7 measured, with the perf number recorded in the README
-- [ ] Live at `https://rpcal.github.io/hex-puzzle-generator/`
-- [ ] README with generated GIFs and screenshots, controls, architecture and the story of the rewrite
-- [ ] Print export produces a physically correct A4 SVG (verified by measuring the output viewBox)
-- [ ] Zero runtime dependencies
-- [ ] The original's five documented bugs (RESEARCH §1.4) verifiably absent
+- [x] All of §11 passing in CI on a clean checkout
+- [~] S1–S7 measured. S1 (frame budget) is **not** measured: the test skips on a software adapter
+      rather than reporting a CPU rasteriser's timings, and CI has no hardware GPU. No frame time
+      is claimed anywhere. S2–S7 hold.
+- [x] Live at `https://rpcal.github.io/hex-puzzle-generator/`
+- [x] README with generated GIFs and screenshots, controls, architecture and the story of the rewrite
+- [x] Print export produces a physically correct A4 SVG (asserted against a browser's own XML parser
+      in e2e, and against the `210mm × 297mm` viewBox in unit tests)
+- [x] Zero runtime dependencies (asserted by a test)
+- [x] The original's five documented bugs (RESEARCH §1.4) verifiably absent
+
+### Open
+
+- **S1, the frame budget on real hardware.** Everything needed to measure it is in place; it needs a
+  runner with a GPU, or one manual run. Until then the number is simply not claimed.
+- Rectangular boards are generated and exported but are not offered in the UI; they exist for the
+  print path, where paper is rectangular.
