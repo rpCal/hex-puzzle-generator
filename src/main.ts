@@ -3,7 +3,13 @@ import { GpuFailure, requestGpu } from '@gfx/device.ts';
 import { Renderer } from '@gfx/renderer.ts';
 import { HexforgeApp } from '@game/app.ts';
 import { Hud, showCapabilityScreen } from './ui/hud.ts';
-import { clampPuzzleId, fromUrlHash, toUrlHash, type PuzzleId } from '@core/seed/codec.ts';
+import {
+  clampPuzzleId,
+  encodePuzzleId,
+  fromUrlHash,
+  toUrlHash,
+  type PuzzleId,
+} from '@core/seed/codec.ts';
 import { Difficulty, difficultyInfo, Mode } from '@core/rules/presets.ts';
 import { registerServiceWorker } from './pwa/register.ts';
 
@@ -21,8 +27,8 @@ function initialPuzzle(): PuzzleId {
   const fromHash = fromUrlHash(globalThis.location.hash);
   if (fromHash !== null) return fromHash;
 
-  // `?pieces=` keeps the e2e and perf suites honest: real gameplay, small enough that a CPU
-  // rasteriser can still hit a sensible frame rate.
+  // `?difficulty=`, `?rings=`, `?seed=` and `?mode=` let the e2e and media suites ask for a
+  // specific board -- real gameplay, small enough that a CPU rasteriser stays honest.
   const askedRings = Number(params.get('rings') ?? '');
   const askedDifficulty = Number(params.get('difficulty') ?? '');
   const seed = Number(params.get('seed') ?? '');
@@ -164,7 +170,9 @@ async function main(): Promise<void> {
 
   globalThis.addEventListener('hashchange', () => {
     const puzzle = fromUrlHash(globalThis.location.hash);
-    if (puzzle !== null && encodeURIComponent(String(puzzle.seed)) !== String(app.puzzle.seed)) {
+    // Compare the encoded codes, not one field: `startBoard` writes the hash itself, so anything
+    // less than a whole-puzzle comparison restarts the board every time it does.
+    if (puzzle !== null && encodePuzzleId(puzzle) !== app.puzzleCode) {
       startBoard(puzzle, false);
     }
   });
@@ -179,11 +187,13 @@ async function main(): Promise<void> {
   startBoard(initialPuzzle(), true);
   app.resume();
 
-  const hudTick = (): void => {
-    hud.update();
-    setTimeout(hudTick, 250);
-  };
-  hudTick();
+  // The clock and the piece counters do not need a repaint every frame. A quarter-second poll is
+  // imperceptible for a timer and keeps the HUD out of the render path entirely.
+  const hudTimer = setInterval(() => hud.update(), 250);
+  globalThis.addEventListener('pagehide', () => {
+    clearInterval(hudTimer);
+    app.pause();
+  });
 
   document.body.dataset['hexforgeState'] = 'ready';
 
