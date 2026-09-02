@@ -436,6 +436,11 @@ upload artifact, `actions/deploy-pages`. Requires flipping the repo's Pages `bui
 ### Open
 
 - **S1, the frame budget on real hardware.** Everything needed to measure it is in place; it needs a
-  runner with a GPU, or one manual run. Until then the number is simply not claimed.
+  runner with a GPU. Until then the number is not claimed.
+
+  A software-rasteriser floor *has* been measured by hand: the 1027-piece board at 1280×800 under
+  SwiftShader generates in 306 ms and holds p50 7.5 ms / p95 14.3 ms over 335,122 triangles. Real
+  hardware can only be faster, but "faster than a CPU rasteriser" is not the same statement as S1
+  and is not recorded as one.
 - Rectangular boards are generated and exported but are not offered in the UI; they exist for the
   print path, where paper is rectangular.

@@ -181,7 +181,14 @@ version of a fragment shader does.
 
 **On the performance claim:** the frame-budget test *skips* on a software adapter with an explicit
 message rather than reporting a number from a CPU rasteriser as if it meant something. No frame time
-has therefore been measured on real hardware in CI, and none is claimed here.
+has therefore been measured on real hardware, and none is claimed here.
+
+What *has* been measured, once, by hand: the full 1027-piece board at 1280×800 under **SwiftShader**
+— no GPU at all, every triangle rasterised on the CPU — generates and uploads in **306 ms** and
+holds **p50 7.5 ms / p95 14.3 ms** across 335,122 triangles, with picking still landing on the exact
+piece. That is a floor, not a hardware figure, and it is the single clearest vindication of choosing
+triangles over a per-fragment distance field: the elegant version's ~370 M distance tests per frame
+would not have come close to running here at all.
 
 ---
 
