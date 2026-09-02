@@ -1,0 +1,384 @@
+/*
+ * HUD styling.
+ *
+ * The board itself is drawn by the GPU; everything here is a DOM overlay on top of it. That is
+ * deliberate: DOM gives real focus rings, real screen-reader semantics and real browser zoom for
+ * free, none of which a canvas-drawn interface gets without reimplementing them badly.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: oklch(0.16 0.02 265);
+  --panel: oklch(0.22 0.025 265 / 0.82);
+  --panel-solid: oklch(0.21 0.025 265);
+  --border: oklch(0.38 0.03 265 / 0.55);
+  --text: oklch(0.94 0.01 265);
+  --muted: oklch(0.72 0.02 265);
+  --accent: oklch(0.78 0.14 235);
+  --accent-ink: oklch(0.18 0.04 250);
+  --good: oklch(0.80 0.15 150);
+  --warn: oklch(0.82 0.15 75);
+
+  --radius: 12px;
+  --gap: 10px;
+  --shadow: 0 10px 30px oklch(0 0 0 / 0.45);
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+#canvas.dragging {
+  cursor: grabbing;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: var(--gap);
+  gap: var(--gap);
+  /* The HUD is a frame around the board: only its actual controls take pointer events. */
+  pointer-events: none;
+}
+
+#hud > * {
+  pointer-events: auto;
+}
+
+.panel {
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ---- top bar ---- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 13px;
+  color: var(--accent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 62px;
+}
+
+.stat b {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat span {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.progress {
+  flex: 1 1 140px;
+  min-width: 100px;
+  height: 6px;
+  border-radius: 999px;
+  background: oklch(1 0 0 / 0.1);
+  overflow: hidden;
+}
+
+.progress > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--good));
+  transition: width 200ms ease-out;
+}
+
+/* ---- controls ---- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  flex-wrap: wrap;
+}
+
+button,
+select,
+input[type='text'] {
+  font: inherit;
+  color: var(--text);
+  background: oklch(1 0 0 / 0.06);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 11px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 90ms ease;
+}
+
+button:hover,
+select:hover {
+  background: oklch(1 0 0 / 0.13);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+button.primary:hover {
+  filter: brightness(1.08);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+label.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+input[type='text'] {
+  font-family: var(--mono);
+  width: 11ch;
+  cursor: text;
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
+  width: 90px;
+}
+
+/* ---- reference thumbnail ---- */
+
+.reference {
+  position: fixed;
+  right: var(--gap);
+  bottom: 72px;
+  width: 132px;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  background: var(--panel-solid);
+}
+
+.reference canvas,
+.reference img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.reference[hidden] {
+  display: none;
+}
+
+/* ---- dialogs ---- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: oklch(0.1 0.02 265 / 0.72);
+  backdrop-filter: blur(6px);
+  padding: 20px;
+  z-index: 10;
+}
+
+.scrim[hidden] {
+  display: none;
+}
+
+.dialog {
+  width: min(460px, 100%);
+  padding: 22px;
+  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  max-height: 86vh;
+  overflow: auto;
+}
+
+.dialog h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.dialog p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.dialog .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.stars {
+  font-size: 30px;
+  letter-spacing: 6px;
+  color: var(--warn);
+  margin: 4px 0 12px;
+}
+
+.record {
+  color: var(--good);
+  font-weight: 600;
+}
+
+/* ---- status / a11y ---- */
+
+.status {
+  position: fixed;
+  left: 50%;
+  bottom: 78px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  max-width: min(90vw, 520px);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 250ms ease;
+  pointer-events: none;
+}
+
+.status.show {
+  opacity: 1;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- capability screen ---- */
+
+.capability {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+  z-index: 20;
+}
+
+.capability .dialog {
+  text-align: left;
+}
+
+.capability code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: oklch(1 0 0 / 0.07);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+/* ---- motion and contrast preferences ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .stat {
+    min-width: 52px;
+  }
+  .reference {
+    width: 92px;
+    bottom: 108px;
+  }
+  .toolbar {
+    justify-content: center;
+  }
+}
+
+body.high-contrast .panel,
+body.high-contrast .dialog {
+  background: oklch(0.12 0 0);
+  border-color: oklch(0.85 0 0);
+}

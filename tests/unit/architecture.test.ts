@@ -17,13 +17,19 @@ const SRC = fileURLToPath(new NodeUrl('../../src', import.meta.url));
 
 type Layer = 'core' | 'gfx' | 'game' | 'ui' | 'print' | 'pwa';
 
-/** What each layer is allowed to reach into. */
+/**
+ * What each layer is allowed to reach into.
+ *
+ * `print` sits beside `gfx` rather than above it: exporting the cut pattern needs the cut and
+ * nothing else, so it depends only on `core`. `ui` may drive it, because exporting is something a
+ * player asks for from a button.
+ */
 const ALLOWED: Record<Layer, readonly Layer[]> = {
   core: [],
   gfx: ['core'],
-  game: ['core', 'gfx'],
-  ui: ['core', 'game'],
   print: ['core'],
+  game: ['core', 'gfx'],
+  ui: ['core', 'game', 'print'],
   pwa: [],
 };
 

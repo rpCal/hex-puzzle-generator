@@ -58,6 +58,8 @@ export interface FrameState {
   readonly deltaSeconds: number;
   /** 1 = cut shading fully visible, 0 = seamless picture. Drives the completion reveal. */
   readonly reveal: number;
+  /** 0..1. Draws a bright line along every piece boundary, for the high-contrast accessibility mode. */
+  readonly cutContrast?: number;
   /** Global highlight tint, rgb. */
   readonly tint: readonly [number, number, number];
   readonly exposure?: number;
@@ -125,6 +127,9 @@ export class Renderer {
   #bloomBlurH!: GPURenderPipeline;
   #bloomBlurV!: GPURenderPipeline;
   #bloomLayout!: GPUBindGroupLayout;
+  #blitPipeline!: GPURenderPipeline;
+  #artBlitBind!: GPUBindGroup;
+  #referenceContext: GPUCanvasContext | null = null;
   #compositePipeline!: GPURenderPipeline;
 
   #particleSimBind!: GPUBindGroup;
@@ -337,6 +342,14 @@ export class Renderer {
     this.#bloomPrefilter = bloomPipeline('bloom-prefilter', 'fs_prefilter');
     this.#bloomBlurH = bloomPipeline('bloom-blur-h', 'fs_blur_h');
     this.#bloomBlurV = bloomPipeline('bloom-blur-v', 'fs_blur_v');
+
+    this.#blitPipeline = device.createRenderPipeline({
+      label: 'blit',
+      layout: bloomPipelineLayout,
+      vertex: { module: bloomModule, entryPoint: 'vs' },
+      fragment: { module: bloomModule, entryPoint: 'fs_copy', targets: [{ format: this.gpu.format }] },
+      primitive: { topology: 'triangle-list' },
+    });
     this.#compositePipeline = device.createRenderPipeline({
       label: 'composite',
       layout: 'auto',
@@ -349,7 +362,51 @@ export class Renderer {
       primitive: { topology: 'triangle-list' },
     });
 
+    this.#artBlitBind = device.createBindGroup({
+      label: 'art-blit',
+      layout: this.#bloomLayout,
+      entries: [
+        { binding: 0, resource: this.#artView },
+        { binding: 1, resource: this.#sampler },
+      ],
+    });
+
     this.setArt(0, 0);
+  }
+
+  /**
+   * Show the source image in a second canvas — the reference thumbnail the player checks against.
+   *
+   * Two canvases can share one device, so this is a blit on the GPU rather than a texture readback
+   * and an ImageData upload for what is a 132-pixel preview.
+   */
+  attachReferenceCanvas(canvas: HTMLCanvasElement): void {
+    const context = canvas.getContext('webgpu');
+    if (context === null) return;
+    context.configure({ device: this.gpu.device, format: this.gpu.format, alphaMode: 'opaque' });
+    this.#referenceContext = context;
+    this.#paintReference();
+  }
+
+  #paintReference(): void {
+    const context = this.#referenceContext;
+    if (context === null) return;
+    const encoder = this.gpu.device.createCommandEncoder({ label: 'reference' });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.setPipeline(this.#blitPipeline);
+    pass.setBindGroup(0, this.#artBlitBind);
+    pass.draw(3);
+    pass.end();
+    this.gpu.device.queue.submit([encoder.finish()]);
   }
 
   // -------------------------------------------------------------------------------------------
@@ -496,6 +553,7 @@ export class Renderer {
     pass.draw(3);
     pass.end();
     device.queue.submit([encoder.finish()]);
+    this.#paintReference();
   }
 
   /** Use a player-supplied image instead. Cover-fits so the aspect ratio is never distorted. */
@@ -512,6 +570,7 @@ export class Renderer {
       },
       [Math.min(width, source.width), Math.min(height, source.height)],
     );
+    this.#paintReference();
   }
 
   // -------------------------------------------------------------------------------------------
@@ -744,7 +803,7 @@ export class Renderer {
     g[12] = frame.timeSeconds;
     g[13] = frame.deltaSeconds;
     g[14] = frame.reveal;
-    g[15] = 0;
+    g[15] = frame.cutContrast ?? 0;
     g[16] = frame.exposure ?? 1.05;
     g[17] = frame.vignette ?? 0.28;
     g[18] = frame.grain ?? 0.012;

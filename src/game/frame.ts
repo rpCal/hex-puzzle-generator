@@ -95,6 +95,7 @@ export interface BuildFrameOptions {
   readonly timeSeconds: number;
   readonly deltaSeconds: number;
   readonly reveal?: number;
+  readonly cutContrast?: number;
   readonly tint?: readonly [number, number, number];
   readonly exposure?: number;
   readonly vignette?: number;
@@ -112,6 +113,7 @@ export function buildFrame(packed: PackedClusters, options: BuildFrameOptions): 
     timeSeconds: options.timeSeconds,
     deltaSeconds: options.deltaSeconds,
     reveal: options.reveal ?? 1,
+    cutContrast: options.cutContrast ?? 0,
     tint: options.tint ?? [0.65, 0.78, 1],
     ...(options.exposure === undefined ? {} : { exposure: options.exposure }),
     ...(options.vignette === undefined ? {} : { vignette: options.vignette }),

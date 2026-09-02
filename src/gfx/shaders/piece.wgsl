@@ -122,6 +122,14 @@ fn fs(in: VertexOut) -> FragmentOut {
   let highlight = in.misc.z;
   colour += in.tint.rgb * highlight;
 
+  // High-contrast cut mode: a bright line hugging the boundary, for players who need the piece
+  // edges to be unambiguous rather than tasteful.
+  let cut_contrast = globals.time.w;
+  if (cut_contrast > 0.0) {
+    let outline = pow(1.0 - clamp(in.edge * 2.6, 0.0, 1.0), 2.0);
+    colour = mix(colour, vec3f(1.0, 0.94, 0.78), outline * cut_contrast);
+  }
+
   // Reveal: as the board completes, the cut shading fades out and the picture becomes seamless.
   let reveal = globals.time.z;
   colour = mix(albedo, colour, reveal);

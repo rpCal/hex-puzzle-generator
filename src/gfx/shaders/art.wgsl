@@ -28,6 +28,12 @@ fn vs(@builtin(vertex_index) index: u32) -> VertexOut {
 }
 
 // Iñigo Quílez's cosine palette. Four vec3 controls give an entire coherent colour scheme.
+//
+// The amplitudes below are deliberately modest and the per-channel phases deliberately close
+// together. Wide phase spread with full amplitude is what produces the saturated primary-and-
+// complement look that reads as "shader demo"; keeping the hues analogous and letting luminance
+// carry most of the variation is what makes an image look painted. It also makes a better puzzle:
+// pieces need local contrast to be matchable, not maximum chroma.
 fn palette(t: f32, a: vec3f, b: vec3f, c: vec3f, d: vec3f) -> vec3f {
   return a + b * cos(6.28318 * (c * t + d));
 }
@@ -38,14 +44,17 @@ fn style_nebula(uv: vec2f, seed: f32) -> vec3f {
   let p = uv * 3.0 + vec2f(seed * 13.7, seed * 7.1);
   let q = vec2f(fbm(p, 5), fbm(p + vec2f(5.2, 1.3), 5));
   let r = vec2f(fbm(p + 4.0 * q + vec2f(1.7, 9.2), 5), fbm(p + 4.0 * q + vec2f(8.3, 2.8), 5));
-  let f = fbm(p + 4.0 * r, 5);
-  return palette(
-    f + 0.15 * r.x,
-    vec3f(0.52, 0.44, 0.55),
-    vec3f(0.45, 0.42, 0.40),
-    vec3f(1.0, 0.95, 0.85),
-    vec3f(0.0, 0.22, 0.52),
+  let f = fbm(p + 4.0 * r, 5) + 0.22 * fbm(p * 5.3 + r * 2.0, 3);
+  // Deep indigo through plum into warm gold where the field peaks.
+  let base = palette(
+    f * 1.1 + 0.12 * r.x,
+    vec3f(0.34, 0.28, 0.40),
+    vec3f(0.34, 0.26, 0.32),
+    vec3f(1.0, 1.0, 1.0),
+    vec3f(0.00, 0.12, 0.26),
   );
+  let glow = smoothstep(0.48, 0.92, f);
+  return base + vec3f(0.55, 0.38, 0.12) * glow * glow;
 }
 
 // Cellular / stained-glass. Hard boundaries give strong local features to match on.
@@ -72,14 +81,17 @@ fn style_shards(uv: vec2f, seed: f32) -> vec3f {
   }
   let tone = hash21(best_cell + vec2f(seed, 0.0));
   let border = smoothstep(0.0, 0.09, second - best);
+  // Teal and emerald glass with dark leading between the cells.
   let base = palette(
-    tone,
-    vec3f(0.48, 0.40, 0.52),
-    vec3f(0.42, 0.44, 0.38),
-    vec3f(0.9, 1.0, 1.1),
-    vec3f(0.15, 0.45, 0.75),
+    tone * 0.8 + 0.1,
+    vec3f(0.30, 0.42, 0.40),
+    vec3f(0.30, 0.34, 0.28),
+    vec3f(1.0, 1.0, 1.0),
+    vec3f(0.28, 0.44, 0.58),
   );
-  return base * mix(0.35, 1.0, border);
+  // A little radial shading inside each cell so a flat tile still has somewhere to look.
+  let shade = mix(0.72, 1.12, smoothstep(0.0, 0.55, best));
+  return base * shade * mix(0.22, 1.0, border);
 }
 
 // Flow field: long sweeping strands, high contrast, very readable when cut into small pieces.
@@ -93,14 +105,16 @@ fn style_currents(uv: vec2f, seed: f32) -> vec3f {
     accum += amp * fbm(p * 1.7, 3);
     amp *= 0.62;
   }
-  let bands = 0.5 + 0.5 * sin(accum * 9.0 + seed);
-  return palette(
-    accum * 0.5 + bands * 0.2,
-    vec3f(0.42, 0.46, 0.55),
-    vec3f(0.44, 0.40, 0.36),
-    vec3f(1.1, 0.85, 0.7),
-    vec3f(0.35, 0.08, 0.62),
+  let bands = 0.5 + 0.5 * sin(accum * 7.0 + seed);
+  // Copper and cream, banded like oil on water.
+  let base = palette(
+    accum * 0.45 + bands * 0.18,
+    vec3f(0.44, 0.34, 0.26),
+    vec3f(0.32, 0.28, 0.24),
+    vec3f(1.0, 1.0, 1.0),
+    vec3f(0.06, 0.14, 0.30),
   );
+  return base + vec3f(0.14, 0.11, 0.06) * bands;
 }
 
 // Concentric interference, with enough warp that no two pieces look alike.
@@ -111,19 +125,34 @@ fn style_bloom(uv: vec2f, seed: f32) -> vec3f {
   let radius = length(d) * (1.0 + warp * 0.55);
   let angle = atan2(d.y, d.x);
   let rings = 0.5 + 0.5 * sin(radius * 34.0 + angle * 5.0 + warp * 6.0);
-  return palette(
-    rings * 0.45 + radius,
-    vec3f(0.50, 0.42, 0.44),
-    vec3f(0.40, 0.42, 0.46),
-    vec3f(0.85, 1.0, 0.95),
-    vec3f(0.62, 0.28, 0.05),
+  // Rose through violet, lifting to cream at the centre of the interference.
+  let base = palette(
+    rings * 0.4 + radius * 0.9,
+    vec3f(0.44, 0.34, 0.42),
+    vec3f(0.32, 0.26, 0.34),
+    vec3f(1.0, 1.0, 1.0),
+    vec3f(0.54, 0.62, 0.74),
   );
+  return base + vec3f(0.20, 0.16, 0.14) * pow(rings, 3.0);
+}
+
+/**
+ * Turn an arbitrary seed into a small coordinate offset.
+ *
+ * This is not cosmetic. The noise below takes `floor(p)` and `p - floor(p)`, and float32 spacing at
+ * 4e6 is 0.5 -- so feeding a large seed straight in as a coordinate offset quantises the fractional
+ * part into steps and the image breaks into hard flat rectangles. Multiplying by the golden ratio
+ * and taking the fraction keeps the variation while keeping every coordinate small enough that the
+ * interpolation still has bits to work with.
+ */
+fn seed_offset(seed: f32) -> f32 {
+  return fract(seed * 0.6180339887) * 96.0;
 }
 
 @fragment
 fn fs(in: VertexOut) -> @location(0) vec4f {
   let style = i32(art.config.x + 0.5);
-  let seed = art.config.y;
+  let seed = seed_offset(art.config.y);
   let uv = clamp(in.uv, vec2f(0.0), vec2f(1.0));
 
   var colour: vec3f;
@@ -138,7 +167,13 @@ fn fs(in: VertexOut) -> @location(0) vec4f {
   }
 
   // Gentle contrast lift, then clamp. Puzzle art wants strong local variation but no pure black,
-  // which would make a piece indistinguishable from the board behind it.
-  colour = clamp((colour - 0.5) * 1.18 + 0.52, vec3f(0.04), vec3f(1.0));
+  // which would make a piece indistinguishable from the board behind it, and no blown white.
+  colour = (colour - 0.5) * 1.32 + 0.5;
+  // Pull a little chroma out of the extremes; fully saturated shadows and highlights are the
+  // giveaway that a picture was generated rather than photographed or painted.
+  let luma = luminance(colour);
+  let extremity = abs(luma - 0.5) * 2.0;
+  colour = mix(colour, vec3f(luma), extremity * extremity * 0.22);
+  colour = clamp(colour, vec3f(0.05), vec3f(0.96));
   return vec4f(colour, 1.0);
 }

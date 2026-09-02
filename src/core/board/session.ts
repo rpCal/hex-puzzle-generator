@@ -2,7 +2,7 @@ import type { CutBoard } from '../cut/board.ts';
 import { Clusters, type ClusterSnapshot } from '../solve/clusters.ts';
 import { resolveSnaps, type SnapConfig, type SnapResult } from '../solve/snap.ts';
 import { Rng } from '../rng/hash32.ts';
-import { aabbCenter, aabbSize, add, type Vec2 } from '../math/vec2.ts';
+import { aabbCenter, aabbSize, add, type Aabb, type Vec2 } from '../math/vec2.ts';
 import { modeInfo, type Mode } from '../rules/presets.ts';
 
 /**
@@ -43,6 +43,7 @@ export class PuzzleSession {
   #grabOffset: Vec2 = { x: 0, y: 0 };
   #elapsed = 0;
   #started = false;
+  #zoom = 1;
   readonly #interiorEdgeCount: number;
 
   constructor(board: CutBoard, options: SessionOptions) {
@@ -50,14 +51,29 @@ export class PuzzleSession {
     this.options = options;
     this.clusters = new Clusters(board.pieces.map((p) => p.center));
     this.#interiorEdgeCount = board.uniqueEdges.filter((e) => !e.isBorder).length;
+    this.#zoom = options.snap?.zoom ?? 1;
+  }
+
+  /**
+   * Current camera zoom, which the snap tolerance scales against.
+   *
+   * Lives here rather than being read from the camera because `core` may not reach into the game
+   * layer -- the caller pushes it in, and a headless test can set it directly.
+   */
+  get zoom(): number {
+    return this.#zoom;
+  }
+
+  setZoom(zoom: number): void {
+    this.#zoom = zoom > 0 ? zoom : 1;
   }
 
   get snapConfig(): SnapConfig {
     return {
       radius: this.board.options.radius,
-      zoom: this.options.snap?.zoom ?? 1,
       rotationTolerance: this.options.snap?.rotationTolerance ?? SIXTY_DEGREES / 4,
       ...this.options.snap,
+      zoom: this.#zoom,
     };
   }
 
@@ -72,9 +88,11 @@ export class PuzzleSession {
     const centre = aabbCenter(this.board.bounds);
     const size = aabbSize(this.board.bounds);
     const halfDiagonal = Math.hypot(size.x, size.y) / 2;
-    const spread = this.options.scatterSpread ?? 1.35;
-    const inner = halfDiagonal * 1.08;
-    const outer = halfDiagonal * spread * 1.6;
+    const spread = this.options.scatterSpread ?? 1.0;
+    const inner = halfDiagonal * 0.98;
+    // Tight enough that a fitted camera still leaves pieces big enough to read, loose enough that
+    // the solved area in the middle stays clear.
+    const outer = halfDiagonal * spread * 1.26;
     const rotates = modeInfo(this.options.mode).rotates;
 
     for (let i = 0; i < this.board.pieces.length; i++) {
@@ -88,6 +106,24 @@ export class PuzzleSession {
       });
       this.clusters.setRotation(i, rotates ? rng.int(6) * SIXTY_DEGREES : 0);
     }
+  }
+
+  /**
+   * Bounds of everything currently on the table, pieces included wherever they have been thrown.
+   *
+   * The camera frames this rather than the solved board bounds: fitting the board alone would push
+   * most of a freshly scattered set off screen.
+   */
+  currentBounds(): Aabb {
+    let min = { x: Infinity, y: Infinity };
+    let max = { x: -Infinity, y: -Infinity };
+    for (let i = 0; i < this.board.pieces.length; i++) {
+      const p = this.clusters.worldPosition(i);
+      const r = this.board.pieces[i]?.boundingRadius ?? 0;
+      min = { x: Math.min(min.x, p.x - r), y: Math.min(min.y, p.y - r) };
+      max = { x: Math.max(max.x, p.x + r), y: Math.max(max.y, p.y + r) };
+    }
+    return Number.isFinite(min.x) ? { min, max } : this.board.bounds;
   }
 
   /** Place every piece exactly where it belongs, welding as it goes. For tests and the demo reel. */

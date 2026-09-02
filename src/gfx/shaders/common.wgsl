@@ -8,7 +8,7 @@ struct Globals {
   cam1: vec4f,
   // board min x, min y, size x, size y -- lets the vertex shader derive atlas UVs on its own
   board: vec4f,
-  // seconds, delta seconds, reveal fade (1 = cuts fully visible, 0 = seamless), pulse
+  // seconds, delta seconds, reveal fade (1 = cuts fully visible, 0 = seamless), cut contrast
   time: vec4f,
   // exposure, vignette, grain, bloom strength
   params: vec4f,

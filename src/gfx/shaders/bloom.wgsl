@@ -61,3 +61,11 @@ fn fs_blur_h(in: VertexOut) -> @location(0) vec4f {
 fn fs_blur_v(in: VertexOut) -> @location(0) vec4f {
   return blur(in.uv, vec2f(0.0, 1.0));
 }
+
+// A straight copy. Used to paint the source image into the small reference thumbnail: a second
+// canvas on the same device costs one blit, where reading the texture back to the CPU and pushing
+// it through an ImageData would cost a four-megabyte round trip for a 132-pixel preview.
+@fragment
+fn fs_copy(in: VertexOut) -> @location(0) vec4f {
+  return vec4f(textureSample(src_texture, src_sampler, in.uv).rgb, 1.0);
+}
