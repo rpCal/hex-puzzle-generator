@@ -56,6 +56,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Install the Vulkan loader
+        # Chromium bundles SwiftShader, but reaching it through ANGLE needs the system Vulkan
+        # loader. Without libvulkan1 the flag set degrades to a configuration where compute still
+        # works while anything touching a canvas swapchain tears the instance down -- which is
+        # exactly the "A valid external Instance reference no longer exists" failure, arriving from
+        # whichever readback was in flight rather than from the thing that actually broke.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers
       - run: npx playwright install --with-deps chromium
       # Runs against SwiftShader. See docs/RESEARCH.md §2.2 for the flag set that makes a real
       # WebGPU adapter available on a runner with no GPU; the flags themselves live in
@@ -72,6 +79,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Install the Vulkan loader
+        # Chromium bundles SwiftShader, but reaching it through ANGLE needs the system Vulkan
+        # loader. Without libvulkan1 the flag set degrades to a configuration where compute still
+        # works while anything touching a canvas swapchain tears the instance down -- which is
+        # exactly the "A valid external Instance reference no longer exists" failure, arriving from
+        # whichever readback was in flight rather than from the thing that actually broke.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4

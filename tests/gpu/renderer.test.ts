@@ -67,6 +67,27 @@ describe('device', () => {
     expect(typeof gpu.info.isFallback).toBe('boolean');
   });
 
+  /**
+   * Assert the canvas swapchain works *before* anything depends on it.
+   *
+   * Compute and canvas presentation can fail independently: a configuration missing the system
+   * Vulkan loader runs compute shaders happily and tears the instance down the moment a swapchain
+   * is involved. Without this, that failure first appears as an unrelated buffer readback
+   * rejecting, several tests later, with a message that names neither cause nor culprit.
+   */
+  it('has a working canvas swapchain, not just compute', async () => {
+    expect(gpu.context).not.toBeNull();
+    const texture = gpu.context.getCurrentTexture();
+    expect(texture.width).toBe(WIDTH);
+    expect(texture.height).toBe(HEIGHT);
+
+    const lost = await Promise.race([
+      gpu.device.lost.then((info) => `${info.reason}: ${info.message}`),
+      Promise.resolve(null),
+    ]);
+    expect(lost).toBeNull();
+  });
+
   it('identifies SwiftShader as a fallback adapter', () => {
     // The perf test relies on this to skip honestly rather than report a meaningless number.
     if (/swiftshader/i.test(`${gpu.info.vendor} ${gpu.info.architecture}`)) {
