@@ -92,6 +92,8 @@ That last point was the original's entire reason for existing — a doubled stro
 ink density — and it used to require a hand-tuned drawing loop with a special case for the last row.
 Here it falls out of the data model: every interior edge is owned by exactly one of its two hexes.
 
+![The A4 cut pattern, exported as SVG](docs/media/print-pattern.png)
+
 ---
 
 ## How it works

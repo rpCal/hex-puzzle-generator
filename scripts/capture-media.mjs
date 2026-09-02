@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -297,6 +297,29 @@ async function main() {
     });
     await sleep(1400);
     await shot('closeup');
+
+    // The print pattern itself, rasterised from the real SVG export. Showing the thing this
+    // project grew out of matters more than describing it.
+    log('print pattern…');
+    await boot('?difficulty=1&seed=20260902');
+    const svg = await page.evaluate(() => globalThis.hexforge.hud.exportPrint('a4'));
+    const svgPath = join(FRAMES, 'pattern.svg');
+    writeFileSync(svgPath, svg);
+    if (spawnSync('convert', ['-version'], { stdio: 'ignore' }).status === 0) {
+      const status = spawnSync(
+        'convert',
+        ['-density', '110', '-background', 'white', '-alpha', 'remove', svgPath, join(OUT, 'print-pattern.png')],
+        { stdio: 'ignore' },
+      ).status;
+      if (status === 0) {
+        shrinkPng(join(OUT, 'print-pattern.png'));
+        log('  → print-pattern.png');
+      } else {
+        log('  ! rasterising the pattern failed');
+      }
+    } else {
+      log('  ! ImageMagick not found, skipping print-pattern.png');
+    }
 
     // The capability screen, so the README can show what a browser without WebGPU gets.
     log('capability screen…');
