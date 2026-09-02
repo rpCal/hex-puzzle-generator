@@ -8,7 +8,15 @@ import {
   type CutBoard,
   type CutOptions,
 } from '@core/cut/board.ts';
-import { tabControlPoints, edgeJitter, CHANNELS_PER_EDGE } from '@core/cut/tab.ts';
+import {
+  tabControlPoints,
+  edgeJitter,
+  clampTabParams,
+  CHANNELS_PER_EDGE,
+  MAX_TAB_EXCURSION,
+} from '@core/cut/tab.ts';
+import { triangulate } from '@core/cut/triangulate.ts';
+import { DIFFICULTIES } from '@core/rules/presets.ts';
 import { axialKey, neighbor, oppositeEdge, pieceCount, HexLayout } from '@core/math/hex.ts';
 import { evaluate, type Cubic } from '@core/math/bezier.ts';
 import { distance, type Vec2 } from '@core/math/vec2.ts';
@@ -430,5 +438,62 @@ describe('performance', () => {
     const elapsed = performance.now() - start;
     expect(b.pieces).toHaveLength(1027);
     expect(elapsed).toBeLessThan(200);
+  });
+});
+
+describe('tab parameter safety', () => {
+  /**
+   * Discovered the hard way: `tabSize = 0.20` with `jitter = 0.09` produces outlines whose own
+   * flanks cross. A self-intersecting outline cannot be triangulated, and the piece renders with a
+   * hole — a symptom that points at the renderer and has nothing to do with it. The generator now
+   * clamps, and this asserts the clamp holds for anything a caller can pass.
+   */
+  it('clamps parameters into the region where outlines stay simple', () => {
+    const clamped = clampTabParams({ tabSize: 0.2, jitter: 0.09 });
+    expect(clamped.tabSize).toBe(0.2);
+    expect(clamped.jitter).toBeCloseTo(0.02, 12);
+    // Already safe: passed through untouched.
+    expect(clampTabParams({ tabSize: 0.16, jitter: 0.06 })).toEqual({ tabSize: 0.16, jitter: 0.06 });
+    expect(clampTabParams({ tabSize: 0.1, jitter: 0.11 })).toEqual({ tabSize: 0.1, jitter: 0.11 });
+  });
+
+  it('keeps 3 * tabSize + jitter inside the measured bound for any input', () => {
+    for (let t = -0.5; t <= 1; t += 0.01) {
+      for (let j = -0.5; j <= 1; j += 0.05) {
+        const clamped = clampTabParams({ tabSize: t, jitter: j });
+        expect(3 * clamped.tabSize + clamped.jitter).toBeLessThanOrEqual(MAX_TAB_EXCURSION + 1e-9);
+        expect(clamped.tabSize).toBeGreaterThan(0);
+        expect(clamped.jitter).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('shrinks the tab rather than giving up when jitter alone cannot save it', () => {
+    const clamped = clampTabParams({ tabSize: 0.4, jitter: 0 });
+    expect(clamped.tabSize).toBeLessThan(0.4);
+    expect(3 * clamped.tabSize + clamped.jitter).toBeLessThanOrEqual(MAX_TAB_EXCURSION + 1e-9);
+  });
+
+  /**
+   * The invariant that actually matters: every difficulty the game ships must produce outlines
+   * that are simple polygons, for any seed. Checked by triangulating — ear clipping returns a
+   * complete `n - 2` fan for a simple polygon and stops short for one that crosses itself.
+   */
+  it('produces fully triangulable outlines for every shipped difficulty', () => {
+    for (const difficulty of DIFFICULTIES) {
+      for (const seed of [1, 7, 12345, 999_999]) {
+        const b = generateCut({
+          seed,
+          // Cap the ring count: the invariant is about the tab parameters, and every piece
+          // interior to the board sees the same edge geometry whatever the board's size.
+          shape: { kind: 'hex', rings: Math.min(difficulty.rings, 4) },
+          radius: 52,
+          tab: difficulty.tab,
+        });
+        for (const piece of b.pieces) {
+          expect(triangulate(piece.outline)).toHaveLength((piece.outline.length - 2) * 3);
+        }
+      }
+    }
   });
 });

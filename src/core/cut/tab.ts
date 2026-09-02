@@ -34,6 +34,36 @@ export interface EdgeJitter {
   readonly flip: boolean;
 }
 
+/**
+ * Largest safe value of `3 * tabSize + jitter`.
+ *
+ * The deepest point of a tab sits `(3t + c)` edge-lengths off the chord, with `c` drawn from
+ * `[-j, j]`. Push that too far and the tab's own flanks cross each other: the outline stops being a
+ * simple polygon, triangulation cannot complete, and pieces render with holes.
+ *
+ * The bound was measured, not guessed. `t = 0.20, j = 0.09` (sum 0.69) produces genuinely
+ * self-intersecting outlines; every shipped difficulty preset sits at or below 0.64 and is clean
+ * across thousands of generated pieces. 0.62 leaves margin without touching any preset.
+ */
+export const MAX_TAB_EXCURSION = 0.62;
+
+/**
+ * Bring tab parameters inside the safe region, preferring to give up jitter before tab size.
+ *
+ * Jitter is the cheaper thing to lose: it varies the cut, while tab size is what makes pieces grip.
+ * Applied by the board generator so no caller can produce a broken cut, however the difficulty
+ * table is edited later.
+ */
+export function clampTabParams(params: TabParams): TabParams {
+  const tabSize = Math.max(0.02, Math.min(0.2, params.tabSize));
+  const jitter = Math.max(0, params.jitter);
+  const budget = MAX_TAB_EXCURSION - 3 * tabSize;
+  if (budget >= jitter) return { tabSize, jitter };
+  if (budget >= 0) return { tabSize, jitter: budget };
+  // Even with no jitter the tab is too deep: shrink it instead.
+  return { tabSize: MAX_TAB_EXCURSION / 3, jitter: 0 };
+}
+
 /** Channel indices within an edge's slice of the hash space. Six channels, eight reserved. */
 const enum Ch {
   A = 0,

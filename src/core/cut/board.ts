@@ -11,7 +11,7 @@ import {
 } from '../math/hex.ts';
 import { flattenChain, reverse, type Cubic } from '../math/bezier.ts';
 import { aabbOf, aabbUnion, distance, type Aabb, type Vec2 } from '../math/vec2.ts';
-import { edgeJitter, straightEdge, tabbedEdge, type TabParams } from './tab.ts';
+import { clampTabParams, edgeJitter, straightEdge, tabbedEdge, type TabParams } from './tab.ts';
 import { hash32 } from '../rng/hash32.ts';
 
 /**
@@ -121,7 +121,10 @@ function ownerOf(cell: Axial, edge: number): { owner: Axial; index: number; borr
 }
 
 export function generateCut(options: CutOptions): CutBoard {
-  const { seed, shape, radius, tab } = options;
+  const { seed, shape, radius } = options;
+  // Guard the cut against parameters that would make an outline self-intersect. See
+  // clampTabParams: this is enforced here so no caller can produce pieces with holes in them.
+  const tab = clampTabParams(options.tab);
   const tolerance = options.flattenTolerance ?? radius * 0.004;
   const layout = new HexLayout(radius);
 
