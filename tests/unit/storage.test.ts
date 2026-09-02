@@ -224,18 +224,19 @@ describe('MemoryStore', () => {
   });
 });
 
-describe('reduced motion', () => {
-  const withMatchMedia = (matches: boolean, run: () => void): void => {
-    const original = Reflect.get(globalThis, 'matchMedia') as unknown;
-    Reflect.set(globalThis, 'matchMedia', (query: string) => ({ matches, media: query }));
-    try {
-      run();
-    } finally {
-      if (original === undefined) Reflect.deleteProperty(globalThis, 'matchMedia');
-      else Reflect.set(globalThis, 'matchMedia', original);
-    }
-  };
+/** Run `body` with `matchMedia` stubbed to a fixed answer, then restore whatever was there. */
+function withMatchMedia(matches: boolean, body: () => void): void {
+  const original = Reflect.get(globalThis, 'matchMedia') as unknown;
+  Reflect.set(globalThis, 'matchMedia', (query: string) => ({ matches, media: query }));
+  try {
+    body();
+  } finally {
+    if (original === undefined) Reflect.deleteProperty(globalThis, 'matchMedia');
+    else Reflect.set(globalThis, 'matchMedia', original);
+  }
+}
 
+describe('reduced motion', () => {
   it('reports the system preference', () => {
     withMatchMedia(true, () => expect(prefersReducedMotion()).toBe(true));
     withMatchMedia(false, () => expect(prefersReducedMotion()).toBe(false));
