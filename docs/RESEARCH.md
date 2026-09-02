@@ -135,6 +135,18 @@ Variant D returned:
   canvas and `queue.onSubmittedWorkDone()` resolved.
 - `maxTextureDimension2D: 8192` — the budget for the source-image atlas.
 
+**Later finding — the flag set alone is not sufficient.** Variant D was verified on a workstation
+with `libvulkan1` installed. On a GitHub Actions runner, which has no Vulkan loader, the *same*
+flags degrade into something that behaves like variant C: compute shaders and buffer readbacks work
+perfectly, and anything that touches a canvas swapchain drops the Dawn instance. The failure then
+surfaces as `mapAsync` rejecting with *"A valid external Instance reference no longer exists"* from
+whichever readback happened to be in flight — naming neither the cause nor the culprit.
+
+Chromium bundles SwiftShader, but reaching it through ANGLE needs the system loader, so CI installs
+`libvulkan1` and `mesa-vulkan-drivers`. The diagnostic that isolated it was that the compute-only
+tests passed in CI while every canvas-based test failed; a GPU test now checks the swapchain
+immediately after the device is acquired so the failure names itself.
+
 **Additional finding — `navigator.gpu` requires a secure context.** `data:` URLs are opaque origins
 and `navigator.gpu` is `undefined` there. `http://localhost` is a secure context and works. All GPU
 tests must be served over localhost, never navigated to as a data URL.
@@ -224,7 +236,7 @@ Findings on feel, which drive the spec:
 
 | Risk | Status |
 |---|---|
-| WebGPU unavailable in CI | **Eliminated** — variant D verified working |
+| WebGPU unavailable in CI | **Eliminated** — variant D verified working, plus `libvulkan1` on the runner (see §2.2) |
 | Screenshots of WebGPU canvas come out black | **Eliminated** — pixel-verified |
 | SwiftShader too slow for e2e | Open — mitigate with a `?pieces=` URL param so tests run small boards |
 | Shader compile errors only surface at runtime | Mitigated — Node-env WGSL static checks + a GPU test that compiles every shader and asserts zero `error` compilation messages |
