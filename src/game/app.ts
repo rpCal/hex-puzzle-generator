@@ -36,6 +36,15 @@ export interface AppEvents {
   onFocusChange?: (piece: number | null) => void;
 }
 
+interface PendingPointer {
+  readonly id: number;
+  /** Where the press landed, which is what the grab offset is measured from. */
+  readonly start: Vec2;
+  /** Where the pointer is now, tracked while the pick readback is in flight. */
+  latest: Vec2;
+  released: boolean;
+}
+
 export interface AppOptions {
   readonly gpu: GpuContext;
   readonly renderer: Renderer;
@@ -72,7 +81,6 @@ export class HexforgeApp {
   #dragTarget: Vec2 = { x: 0, y: 0 };
   #panPointer: number | null = null;
   #panLast: Vec2 = { x: 0, y: 0 };
-  #pointerMoved = false;
   #lastMappingRevision = -1;
   #solvedAnnounced = false;
   #gamepadGrabbed = false;
@@ -282,34 +290,67 @@ export class HexforgeApp {
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
+  /**
+   * Begin an interaction.
+   *
+   * Picking is a GPU readback, so it resolves a frame or two later — and a quick flick can produce
+   * the whole down/move/up sequence before it does. Rather than dropping those, the pointer is
+   * recorded synchronously and its latest position tracked; when the pick lands, the drag is
+   * reconstructed from what actually happened, including the case where the pointer is already up.
+   */
   async pointerDown(pointerId: number, clientX: number, clientY: number): Promise<void> {
     this.audio.unlock();
     const device = this.#toDevice(clientX, clientY);
+    const pending: PendingPointer = {
+      id: pointerId,
+      start: device,
+      latest: device,
+      released: false,
+    };
+    this.#pending = pending;
+
     const piece = await this.renderer.pick(device.x, device.y);
-    this.#pointerMoved = false;
+
+    // A newer press superseded this one while the readback was in flight.
+    if (this.#pending !== pending) return;
+    this.#pending = null;
 
     if (piece < 0) {
-      this.#panPointer = pointerId;
-      this.#panLast = device;
+      // Empty board: pan. If the pointer is already up there is nothing left to do.
+      if (!pending.released) {
+        this.#panPointer = pointerId;
+        this.#panLast = pending.latest;
+      }
       return;
     }
 
-    this.#dragPointer = pointerId;
     this.#focus = piece;
     this.events.onFocusChange?.(piece);
-    const world = this.camera.screenToWorld(device);
-    this.session.grab(piece, world);
-    this.#dragTarget = this.session.clusters.worldPosition(piece);
-    this.#grabOffset = sub(this.session.clusters.worldPosition(piece), world);
+
+    const grabWorld = this.camera.screenToWorld(pending.start);
+    this.session.grab(piece, grabWorld);
+    this.#grabOffset = sub(this.session.clusters.worldPosition(piece), grabWorld);
+    this.#dragTarget = add(this.camera.screenToWorld(pending.latest), this.#grabOffset);
     if (!this.prefs.reducedMotion) this.audio.pickup();
+
+    if (pending.released) {
+      // The whole gesture completed before the pick returned. Honour it as a drag anyway.
+      this.#finishDrag();
+      return;
+    }
+    this.#dragPointer = pointerId;
   }
 
   #grabOffset: Vec2 = { x: 0, y: 0 };
+  #pending: PendingPointer | null = null;
 
   pointerMove(pointerId: number, clientX: number, clientY: number): void {
     const device = this.#toDevice(clientX, clientY);
-    this.#pointerMoved = true;
 
+    if (this.#pending !== null && this.#pending.id === pointerId) {
+      this.#pending.latest = device;
+      return;
+    }
     if (pointerId === this.#panPointer) {
       this.camera.panByScreen(device.x - this.#panLast.x, device.y - this.#panLast.y);
       this.#panLast = device;
@@ -320,13 +361,32 @@ export class HexforgeApp {
   }
 
   pointerUp(pointerId: number): void {
+    if (this.#pending !== null && this.#pending.id === pointerId) {
+      // Still waiting on the pick. Record the release; `pointerDown` completes the gesture.
+      this.#pending.released = true;
+      return;
+    }
     if (pointerId === this.#panPointer) {
       this.#panPointer = null;
       return;
     }
     if (pointerId !== this.#dragPointer) return;
     this.#dragPointer = null;
-    void this.#pointerMoved;
+    this.#finishDrag();
+  }
+
+  #finishDrag(): void {
+    // Land the piece where it was dropped, not where the spring had got to. The spring exists to
+    // give a dragged cluster apparent mass; letting its lag decide whether a snap succeeds would
+    // mean a quick, accurate drop failing where a slow, sloppy one worked.
+    const held = this.session.heldPiece;
+    if (held !== null) {
+      const current = this.session.clusters.worldPosition(held);
+      this.session.clusters.translate(held, {
+        x: this.#dragTarget.x - current.x,
+        y: this.#dragTarget.y - current.y,
+      });
+    }
     this.#releaseHeld();
   }
 

@@ -69,7 +69,14 @@ body {
   pointer-events: none;
 }
 
-#hud > * {
+/*
+ * Only the actual control panels accept pointer events.
+ *
+ * `#hud > *` looked equivalent and was not: the grid's middle row is an empty spacer that fills
+ * everything between the two bars, so it swallowed every click meant for the board and made the
+ * game unplayable with a mouse while looking completely correct.
+ */
+#hud > .panel {
   pointer-events: auto;
 }
 

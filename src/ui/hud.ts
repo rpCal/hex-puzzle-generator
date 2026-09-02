@@ -63,7 +63,9 @@ export class Hud {
     this.#app = app;
     this.#callbacks = callbacks;
     this.root = h('div', { id: 'hud' });
-    this.root.append(this.#buildTopBar(), h('div'), this.#buildToolbar());
+    // The middle row is a spacer that keeps the two bars apart; it must stay transparent to
+    // pointer events, which the stylesheet enforces by targeting `.panel` rather than every child.
+    this.root.append(this.#buildTopBar(), h('div', { class: 'spacer-row' }), this.#buildToolbar());
     document.body.append(this.root, this.#buildStatus(), this.#buildCompletion(), this.#buildSettings());
     this.#reference = this.#buildReference();
     document.body.append(this.#reference);
