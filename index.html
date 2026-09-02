@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Hexforge — a GPU-driven hexagonal jigsaw</title>
+    <meta
+      name="description"
+      content="A hexagonal jigsaw puzzle rendered with WebGPU. Deterministic cuts, shareable seeds, and a print-ready pattern so you can cut a real one."
+    />
+    <meta name="theme-color" content="#12151f" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 29 9.5v15L16 32 3 24.5v-15z' fill='%2358a6ff'/%3E%3C/svg%3E" />
+    <meta property="og:title" content="Hexforge" />
+    <meta property="og:description" content="A GPU-driven hexagonal jigsaw puzzle for the browser." />
+    <meta property="og:type" content="website" />
+  </head>
+  <body>
+    <canvas id="canvas" aria-label="Puzzle board" role="application" tabindex="0"></canvas>
+    <noscript>
+      <p style="padding: 24px; font-family: system-ui">Hexforge needs JavaScript and WebGPU to run.</p>
+    </noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
