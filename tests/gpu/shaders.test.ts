@@ -26,7 +26,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  device?.destroy();
 });
 
 describe('shader tree', () => {

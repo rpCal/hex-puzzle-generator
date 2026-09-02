@@ -842,6 +842,11 @@ export class Renderer {
       const value = new Uint32Array(this.#pickStaging.getMappedRange(0, 4))[0] ?? 0;
       this.#pickStaging.unmap();
       return value === 0 ? -1 : value - 1;
+    } catch {
+      // A lost device, or a readback aborted because the GPU process went away. Picking runs
+      // directly off a pointer event, and an input handler is the last place that should throw:
+      // report "nothing here" and let the next frame try again.
+      return -1;
     } finally {
       this.#pickInFlight = false;
     }

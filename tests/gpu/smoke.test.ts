@@ -16,7 +16,6 @@ describe('webgpu availability under vitest browser mode', () => {
     const device = await adapter!.requestDevice();
     expect(device).toBeDefined();
     expect(device.limits.maxTextureDimension2D).toBeGreaterThanOrEqual(4096);
-    device.destroy();
   });
 
   it('round-trips a compute shader through a storage buffer', async () => {
@@ -59,7 +58,6 @@ describe('webgpu availability under vitest browser mode', () => {
     await readback.mapAsync(GPUMapMode.READ);
     const out = Array.from(new Uint32Array(readback.getMappedRange().slice(0)));
     readback.unmap();
-    device.destroy();
 
     expect(out.slice(0, 4)).toEqual([1, 4, 7, 10]);
   });

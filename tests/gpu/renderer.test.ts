@@ -228,7 +228,15 @@ describe('drawing', () => {
       renderer.render(buildFrame(packed, { camera, timeSeconds: i / 60, deltaSeconds: 1 / 60 }));
     }
     await gpu.device.queue.onSubmittedWorkDone();
-    expect(true).toBe(true);
+
+    // Explicitly assert the device survived. Without this, a GPU process that died mid-run shows
+    // up later as an unrelated assertion failing on a readback that quietly returned nothing --
+    // which is exactly how it presented the first time CI hit it.
+    const lost = await Promise.race([
+      gpu.device.lost.then((info) => info.message),
+      Promise.resolve(null),
+    ]);
+    expect(lost).toBeNull();
   });
 
   it('handles a resize', async () => {

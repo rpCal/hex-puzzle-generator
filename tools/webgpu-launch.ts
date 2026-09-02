@@ -28,6 +28,16 @@ export const WEBGPU_CHROMIUM_ARGS: readonly string[] = [
   '--use-angle=vulkan',
   '--use-vulkan=swiftshader',
   '--enable-unsafe-swiftshader',
+  // Container stability, not WebGPU configuration.
+  //
+  // CI runners give Chromium a 64 MB /dev/shm. SwiftShader allocates its render targets and
+  // staging buffers there, exhausts it, and the GPU process dies -- which surfaces much later and
+  // much more confusingly as `mapAsync` rejecting with "A valid external Instance reference no
+  // longer exists" from whatever readback happened to be in flight. Falling back to /tmp costs
+  // nothing and removes the whole failure mode.
+  '--disable-dev-shm-usage',
+  // A crashed GPU process is otherwise relaunched into a state the existing device cannot use.
+  '--disable-gpu-process-crash-limit',
 ];
 
 /** Mutable copy, for APIs that insist on `string[]`. */

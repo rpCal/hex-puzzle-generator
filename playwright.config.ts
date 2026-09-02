@@ -8,7 +8,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
-  ...(process.env['CI'] ? { workers: 2 } : {}),
+  // One worker in CI. Each worker runs a full SwiftShader pipeline; two at once is what
+  // exhausts the runner and takes the GPU process with it.
+  ...(process.env['CI'] ? { workers: 1 } : {}),
   reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : [['list']],
   timeout: 60_000,
   expect: {

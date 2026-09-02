@@ -84,6 +84,8 @@ export class HexforgeApp {
   #lastMappingRevision = -1;
   #solvedAnnounced = false;
   #gamepadGrabbed = false;
+  /** Cluster id -> the render time it was last touched. Drives the Blitz fade. */
+  #lastTouched = new Map<number, number>();
   #saveSession: (() => void) & { flush(): void; cancel(): void };
   /** Frame durations in ms, for the perf test and the HUD. */
   readonly frameTimes: number[] = [];
@@ -158,6 +160,7 @@ export class HexforgeApp {
 
     this.camera.fit(this.session.currentBounds(), 1.22);
     this.#reveal = 1;
+    this.#lastTouched.clear();
     this.#focus = null;
     this.#solvedAnnounced = false;
     this.#lastMappingRevision = -1;
@@ -251,6 +254,7 @@ export class HexforgeApp {
     this.#elapsedRender += dt;
     const packed = this.#packer.pack(
       (cluster) => (this.#focus !== null && this.session.clusters.find(this.#focus) === cluster ? 0.22 : 0),
+      (cluster) => this.#alphaOf(cluster),
     );
     if (packed.mappingRevision !== this.#lastMappingRevision) {
       this.renderer.setPieceClusters(packed.pieceCluster);
@@ -268,6 +272,31 @@ export class HexforgeApp {
         bloom: this.prefs.reducedMotion ? 0.2 : 0.55,
       }),
     );
+  }
+
+  /**
+   * How visible a cluster is.
+   *
+   * Only Blitz uses this: a cluster you have not touched for a while fades toward transparent, so
+   * deliberating has a cost. It never reaches zero -- a piece you cannot see at all is a piece you
+   * cannot finish the board without.
+   */
+  #alphaOf(cluster: number): number {
+    const fadeSeconds = modeInfo(this.puzzle.mode).fadeSeconds;
+    if (fadeSeconds <= 0) return 1;
+    const touched = this.#lastTouched.get(cluster);
+    if (touched === undefined) {
+      this.#lastTouched.set(cluster, this.#elapsedRender);
+      return 1;
+    }
+    const idle = this.#elapsedRender - touched;
+    if (idle <= fadeSeconds) return 1;
+    return Math.max(0.16, 1 - (idle - fadeSeconds) / fadeSeconds);
+  }
+
+  /** Mark a cluster as handled, restoring it to full opacity in Blitz. */
+  #touch(piece: number): void {
+    this.#lastTouched.set(this.session.clusters.find(piece), this.#elapsedRender);
   }
 
   resize(width: number, height: number, dpr = 1): void {
@@ -325,6 +354,7 @@ export class HexforgeApp {
     }
 
     this.#focus = piece;
+    this.#touch(piece);
     this.events.onFocusChange?.(piece);
 
     const grabWorld = this.camera.screenToWorld(pending.start);
@@ -395,6 +425,8 @@ export class HexforgeApp {
     if (held === null) return;
     this.session.setZoom(this.camera.zoom);
     const result = this.session.release();
+
+    this.#touch(held);
 
     if (result.joins.length > 0) {
       const size = this.session.clusters.sizeOf(held);
@@ -520,6 +552,7 @@ export class HexforgeApp {
 
   #nudge(dx: number, dy: number): boolean {
     if (this.#focus === null) return false;
+    this.#touch(this.#focus);
     this.session.clusters.bringToFront(this.#focus);
     this.session.moveCluster(
       this.#focus,

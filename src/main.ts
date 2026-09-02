@@ -5,6 +5,7 @@ import { HexforgeApp } from '@game/app.ts';
 import { Hud, showCapabilityScreen } from './ui/hud.ts';
 import { clampPuzzleId, fromUrlHash, toUrlHash, type PuzzleId } from '@core/seed/codec.ts';
 import { Difficulty, difficultyInfo, Mode } from '@core/rules/presets.ts';
+import { registerServiceWorker } from './pwa/register.ts';
 
 /**
  * Bootstrap.
@@ -185,6 +186,10 @@ async function main(): Promise<void> {
   hudTick();
 
   document.body.dataset['hexforgeState'] = 'ready';
+
+  // Offline support is a bonus, never a prerequisite: registered after the game is already running
+  // and ignored entirely if it fails.
+  void registerServiceWorker(new URL(import.meta.env.BASE_URL, globalThis.location.href).pathname);
 
   // Test surface. Exposed deliberately: driving real gameplay through the real API is a far better
   // e2e test than synthesising pointer events and hoping they land on the right pixel.

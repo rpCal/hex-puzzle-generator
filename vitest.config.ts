@@ -41,6 +41,9 @@ export default defineConfig({
         test: {
           name: 'gpu',
           include: ['tests/gpu/**/*.test.ts'],
+          // One file at a time: each holds its own SwiftShader device, and several at once is the
+          // memory pressure that takes the GPU process down on a CI runner.
+          fileParallelism: false,
           browser: {
             enabled: true,
             headless: true,

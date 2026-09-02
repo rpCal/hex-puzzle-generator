@@ -90,6 +90,15 @@ test.describe('solving', () => {
 
     await expect(page.locator('.scrim:not([hidden]) .dialog')).toContainText('Solved');
     expect(await page.evaluate(() => document.body.dataset['hexforgeSolved'])).toBe('true');
+
+    // The completion dialog offers a share card carrying the puzzle code, so whoever sees it can
+    // play the identical board. Headless has no share sheet and no clipboard image permission, so
+    // this exercises the download fallback -- which is the path that must never silently do nothing.
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Share card' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(`hexforge-${solved.code}.png`);
   });
 
   /**
@@ -157,6 +166,30 @@ test.describe('solving', () => {
     const solved = await snapshot(page);
     expect(solved.solved).toBe(true);
     expect(pressesUsed.count).toBeGreaterThan(20);
+  });
+});
+
+test.describe('offline', () => {
+  test('registers a service worker so the game works after one visit', async ({ page }) => {
+    await bootGame(page, SAMPLER);
+    await page.waitForFunction(
+      async () => (await navigator.serviceWorker.getRegistrations()).length > 0,
+      null,
+      { timeout: 20_000 },
+    );
+    const scope = await page.evaluate(async () => {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      return registrations[0]?.scope ?? '';
+    });
+    expect(scope).toContain('/hex-puzzle-generator/');
+  });
+
+  test('serves a web app manifest', async ({ page }) => {
+    const response = await page.goto('./manifest.webmanifest');
+    expect(response?.status()).toBe(200);
+    const manifest = JSON.parse((await response?.text()) ?? '{}') as { name?: string; icons?: unknown[] };
+    expect(manifest.name).toBe('Hexforge');
+    expect(manifest.icons?.length).toBeGreaterThan(0);
   });
 });
 

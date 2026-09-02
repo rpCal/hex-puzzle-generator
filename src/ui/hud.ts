@@ -4,6 +4,7 @@ import { clampPuzzleId, encodePuzzleId, fromUrlHash, toUrlHash, type PuzzleId } 
 import { boardToSvg, printFilename, PAGES, type PageKey } from '../print/svg.ts';
 import type { HexforgeApp } from '@game/app.ts';
 import { Persistence } from '@game/storage.ts';
+import { drawShareCard, shareCard } from '@game/sharecard.ts';
 
 /**
  * The HUD.
@@ -371,6 +372,7 @@ export class Hud {
       h('p', { textContent: `Puzzle code ${app.puzzleCode} — anyone who opens it gets this exact cut.` }),
       h('div', { class: 'row' }, [
         h('button', { textContent: 'Copy link', onclick: () => void this.#share() }),
+        h('button', { textContent: 'Share card', onclick: () => void this.shareResultCard(stars) }),
         h('button', { textContent: 'Print pattern', onclick: () => this.exportPrint() }),
         h('button', {
           class: 'primary',
@@ -387,6 +389,33 @@ export class Hud {
     this.#toggle(this.#completion, true);
     (dialog.querySelector('button.primary') as HTMLButtonElement | null)?.focus();
     this.#live.textContent = `Solved in ${formatDuration(score.elapsedSeconds)}. ${stars} of 3 stars.`;
+  }
+
+  /**
+   * Render the finished board, the time and the puzzle code into an image and offer it.
+   *
+   * The code on the card is what makes it more than a boast: anyone who sees it can play the exact
+   * same board.
+   */
+  async shareResultCard(stars: number): Promise<void> {
+    const app = this.#app;
+    const card = drawShareCard({
+      source: app.gpu.canvas,
+      seconds: app.session.elapsedSeconds,
+      stars,
+      pieces: app.board.pieces.length,
+      code: app.puzzleCode,
+    });
+    const result = await shareCard(card, `hexforge-${app.puzzleCode}.png`);
+    this.setStatus(
+      result.method === 'none'
+        ? 'That image could not be created.'
+        : result.method === 'share'
+          ? 'Shared.'
+          : result.method === 'clipboard'
+            ? 'Share card copied to the clipboard.'
+            : 'Share card downloaded.',
+    );
   }
 
   hideCompletion(): void {
