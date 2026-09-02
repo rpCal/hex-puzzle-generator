@@ -130,11 +130,20 @@ async function main() {
       log(`  → ${name}.png`);
     };
 
-    /** Capture `count` frames while `step(i)` advances the scene. */
+    /**
+     * Capture `count` frames while `step(i)` advances the scene.
+     *
+     * `settleMs` may be a function of the frame index. That matters for the snap burst: a
+     * screenshot under SwiftShader costs a few hundred milliseconds of wall clock, which is most of
+     * a spark's half-second life, so the frames right after a release are taken back to back with
+     * no added delay or the effect is over before the first one lands.
+     */
     const clip = async (name, count, step, settleMs = 90) => {
+      const delayFor = typeof settleMs === 'function' ? settleMs : () => settleMs;
       for (let i = 0; i < count; i++) {
         await step(i);
-        await sleep(settleMs);
+        const delay = delayFor(i);
+        if (delay > 0) await sleep(delay);
         await page.screenshot({ path: join(FRAMES, `${name}-${String(i).padStart(4, '0')}.png`) });
       }
       log(`  → ${name}: ${count} frames`);
@@ -194,7 +203,9 @@ async function main() {
             await page.mouse.up();
           }
         },
-        70,
+        // No added delay for the frames right after the drop, so the spark burst is actually in
+        // shot rather than already expired by the time the first screenshot completes.
+        (i) => (i >= steps ? 0 : 70),
       );
       if (encodeGif('snap', 20)) log('  → snap.gif');
     }

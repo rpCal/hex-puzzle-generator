@@ -434,10 +434,14 @@ export class HexforgeApp {
       if (!this.prefs.reducedMotion) {
         for (const join of result.joins.slice(0, 3)) {
           const at = joinMidpoint(this.board, this.session.clusters, join);
+          // Sized to actually read. At 6% of the hex radius and half a second these were about
+          // four pixels for a third of a blink -- technically present, effectively invisible, and
+          // no reward at all for the thing they exist to celebrate.
           const burst = this.#spawner.burst(at, this.prefs.colorblind ? [1, 0.8, 0.3] : [0.7, 0.85, 1], {
-            count: 34,
-            speed: this.#radius * 1.8,
-            size: this.#radius * 0.06,
+            count: 46,
+            speed: this.#radius * 2.2,
+            size: this.#radius * 0.16,
+            lifetime: 0.8,
           });
           this.renderer.writeParticles(burst.firstSlot, burst.data);
         }
