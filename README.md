@@ -157,15 +157,21 @@ is reproducible rather than fetched. Your own images work too, and never leave y
 
 | Tier | Count | What it runs against |
 |---|---|---|
-| Unit | 285 | Node. Pure logic only. **97.3 % statements, 98.1 % lines** on `src/core` |
-| GPU | 39 | A real WebGPU device, headless, on a machine with no GPU |
-| e2e | 17 | A real browser, real mouse and keyboard events, real frames |
+| Unit | 308 | Node. Pure logic only. **97.3 % statements, 98.1 % lines** on `src/core` |
+| GPU | 40 | A real WebGPU device, headless, on a machine with no GPU |
+| e2e | 20 | A real browser, real mouse and keyboard events, real frames |
 
 Getting WebGPU running headlessly was the one thing that could have made GPU tests, e2e tests and
 these very GIFs impossible, so it was de-risked before a line of application code was written. Four
 Chromium configurations were probed; exactly one gives a stable adapter with working compute
 readback under SwiftShader ([`tools/webgpu-launch.ts`](tools/webgpu-launch.ts),
 [`docs/RESEARCH.md §2.2`](docs/RESEARCH.md)).
+
+That turned out not to be the whole answer. The same flags degrade on a runner with no system
+Vulkan loader into a configuration where compute works perfectly and anything touching a canvas
+swapchain drops the device — surfacing as an unrelated buffer readback rejecting, several tests
+later, with a message naming neither cause nor culprit. CI installs `libvulkan1`, and a GPU test
+now checks the swapchain immediately after the device is acquired so that failure names itself.
 
 The highest-value test in the project compiles every `.wgsl` file and asserts zero diagnostics. A
 WGSL error does not throw: the module is created, the pipeline builds, the draw executes, and
